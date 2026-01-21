@@ -37,6 +37,7 @@ MISSIONS = [
     "Combien coûte celui-ci ?", "Je suis à la maison.", "Je suis malade aujourd'hui.",
     "Je ne mange pas beaucoup."
 ]
+
 def upload_to_drive(file_path, file_name, langue):
     creds = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
     service = build('drive', 'v3', credentials=creds)
@@ -48,31 +49,13 @@ def upload_to_drive(file_path, file_name, langue):
     
     media = MediaFileUpload(file_path, mimetype='audio/ogg')
     
-    # On ajoute supportsAllDrives pour que Google accepte d'utiliser ton stockage
+    # supportsAllDrives=True corrige l'erreur "Service Accounts do not have storage quota"
     service.files().create(
         body=metadata, 
         media_body=media, 
         fields='id',
         supportsAllDrives=True 
     ).execute()
-    
-    
-    # On précise bien que le dossier parent est TON dossier
-    metadata = {
-        'name': f"{langue}_{file_name}", 
-        'parents': [FOLDER_ID]
-    }
-    
-    media = MediaFileUpload(file_path, mimetype='audio/ogg')
-    
-    # On ajoute supportsAllDrives pour autoriser le transfert vers ton espace
-    service.files().create(
-        body=metadata, 
-        media_body=media, 
-        fields='id',
-        supportsAllDrives=True 
-    ).execute()
-    
 
 @bot.message_handler(commands=['start', 'collecte'])
 def start(message):
@@ -96,7 +79,6 @@ def save_vocal(message, langue, mission):
             file_info = bot.get_file(message.voice.file_id)
             downloaded = bot.download_file(file_info.file_path)
             
-            # Nom : Langue_Mission_Date.ogg
             safe_mission = "".join(x for x in mission[:15] if x.isalnum())
             temp_name = f"{langue}_{safe_mission}_{message.date}.ogg"
             
@@ -112,4 +94,3 @@ def save_vocal(message, langue, mission):
         bot.reply_to(message, "⚠️ Annulé. Tu dois envoyer un vocal pour cette mission.")
 
 bot.polling()
-  
