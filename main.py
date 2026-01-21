@@ -37,13 +37,42 @@ MISSIONS = [
     "Combien coûte celui-ci ?", "Je suis à la maison.", "Je suis malade aujourd'hui.",
     "Je ne mange pas beaucoup."
 ]
-
 def upload_to_drive(file_path, file_name, langue):
     creds = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
     service = build('drive', 'v3', credentials=creds)
-    metadata = {'name': f"{langue}_{file_name}", 'parents': [FOLDER_ID]}
+    
+    metadata = {
+        'name': f"{langue}_{file_name}", 
+        'parents': [FOLDER_ID]
+    }
+    
     media = MediaFileUpload(file_path, mimetype='audio/ogg')
-    service.files().create(body=metadata, media_body=media, fields='id').execute()
+    
+    # On ajoute supportsAllDrives pour que Google accepte d'utiliser ton stockage
+    service.files().create(
+        body=metadata, 
+        media_body=media, 
+        fields='id',
+        supportsAllDrives=True 
+    ).execute()
+    
+    
+    # On précise bien que le dossier parent est TON dossier
+    metadata = {
+        'name': f"{langue}_{file_name}", 
+        'parents': [FOLDER_ID]
+    }
+    
+    media = MediaFileUpload(file_path, mimetype='audio/ogg')
+    
+    # On ajoute supportsAllDrives pour autoriser le transfert vers ton espace
+    service.files().create(
+        body=metadata, 
+        media_body=media, 
+        fields='id',
+        supportsAllDrives=True 
+    ).execute()
+    
 
 @bot.message_handler(commands=['start', 'collecte'])
 def start(message):
