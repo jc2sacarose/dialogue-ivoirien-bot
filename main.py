@@ -6,7 +6,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
 # --- CONFIGURATION ---
-API_TOKEN = 'TON_TOKEN_TELEGRAM_ICI' 
+API_TOKEN = '8531832542:AAEOejvyJ8vNL3BglMOhtm65lp4LsHLZMm4' 
 FOLDER_ID = '1HRWpj38G4GLB2PLHo1Eh0jvKXi1zdoLe'
 # ---------------------
 
