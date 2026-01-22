@@ -6,9 +6,11 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
 # --- CONFIGURATION ---
-API_TOKEN = '8531832542:AAEOejvyJ8vNL3BglMOhtm65lp4LsHLZMm4' 
+# Utilise bien le nouveau token complet ici
+API_TOKEN = '8531832542:AAHHgpFB-dTvCYbKKtNhL-RPCQvH_jTuGxY' 
 FOLDER_ID = '1HRWpj38G4GLB2PLHo1Eh0jvKXi1zdoLe'
 # ---------------------
+
 
 bot = telebot.TeleBot(API_TOKEN)
 SERVICE_ACCOUNT_FILE = '/etc/secrets/service_account.json'
