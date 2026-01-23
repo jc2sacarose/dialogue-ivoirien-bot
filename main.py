@@ -113,11 +113,16 @@ def save_vocal(message, langue, mission):
                     voice=voice_file, 
                     caption=f"🎙 **Audio {langue} reçu**\n📝 Phrase : {mission}\n👤 Par : @{message.from_user.username or message.from_user.first_name}"
                 )
+                
+            # --- TRANSFERT VERS LE GROUPE TELEGRAM ---
+            archive_id = os.environ.get('ARCHIVE_ID', '-1003561100537')
+            with open(temp_name, 'rb') as voice_file:
+                bot.send_voice(chat_id=archive_id, voice=voice_file, caption=f"🎙 {langue}\n📝 {mission}")
 
-                        # --- TRANSFERT VERS GOOGLE DRIVE ---
+            # --- TRANSFERT VERS GOOGLE DRIVE (DOIT ÊTRE ICI) ---
             upload_to_drive(temp_name, temp_name, langue)
             
-
+                        
             # Confirmation à l'utilisateur
             bot.reply_to(message, f"✅ Merci ! Ta contribution en **{langue}** est sauvegardée dans l'archive et sur le Drive.", parse_mode='Markdown')
             
