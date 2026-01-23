@@ -8,7 +8,6 @@ from flask import Flask
 from threading import Thread
 
 # --- CONFIGURATION VIA VARIABLES D'ENVIRONNEMENT ---
-# On utilise os.environ.get pour plus de sécurité et de flexibilité sur Render
 API_TOKEN = os.environ.get('TELE_TOKEN', '8531832542:AAEOejvyJ8vNL3BglMOhtm65lp4LsHLZMm4')
 FOLDER_ID = os.environ.get('FOLDER_ID', '1HRWpj38G4GLB2PLHo1Eh0jvKXi1zdoLe')
 PORT = int(os.environ.get('PORT', 10000))
@@ -16,7 +15,6 @@ SERVICE_ACCOUNT_FILE = '/etc/secrets/service_account.json'
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
 # --- SERVEUR WEB (FLASK) POUR RENDER ---
-# Indispensable pour éviter l'erreur "No open ports detected"
 app = Flask('')
 
 @app.route('/')
@@ -28,7 +26,7 @@ def run_flask():
 
 def keep_alive():
     t = Thread(target=run_flask)
-    t.daemon = True # Le thread s'arrêtera si le programme principal s'arrête
+    t.daemon = True
     t.start()
 
 # --- INITIALISATION DU BOT ---
@@ -92,20 +90,17 @@ def save_vocal(message, langue, mission):
         try:
             bot.reply_to(message, "⏳ Enregistrement sécurisé en cours...")
             
-            # 1. Téléchargement du fichier depuis Telegram
+            # 1. Téléchargement du fichier
             file_info = bot.get_file(message.voice.file_id)
             downloaded = bot.download_file(file_info.file_path)
             
-            # Nom propre pour le fichier
             safe_mission = "".join(x for x in mission[:15] if x.isalnum())
             temp_name = f"{langue}_{safe_mission}_{message.date}.ogg"
             
-            # Sauvegarde temporaire sur le serveur Render
             with open(temp_name, 'wb') as f:
                 f.write(downloaded)
 
-            # --- AJOUT : TRANSFERT VERS LE GROUPE D'ARCHIVE TELEGRAM ---
-            # On récupère l'ID du groupe depuis tes variables d'environnement
+            # 2. TRANSFERT VERS L'ARCHIVE TELEGRAM (Nettoyé pour éviter les doublons)
             archive_id = os.environ.get('ARCHIVE_ID', '-1003561100537') 
             with open(temp_name, 'rb') as voice_file:
                 bot.send_voice(
@@ -113,20 +108,14 @@ def save_vocal(message, langue, mission):
                     voice=voice_file, 
                     caption=f"🎙 **Audio {langue} reçu**\n📝 Phrase : {mission}\n👤 Par : @{message.from_user.username or message.from_user.first_name}"
                 )
-                
-            # --- TRANSFERT VERS LE GROUPE TELEGRAM ---
-            archive_id = os.environ.get('ARCHIVE_ID', '-1003561100537')
-            with open(temp_name, 'rb') as voice_file:
-                bot.send_voice(chat_id=archive_id, voice=voice_file, caption=f"🎙 {langue}\n📝 {mission}")
 
-            # --- TRANSFERT VERS GOOGLE DRIVE (DOIT ÊTRE ICI) ---
+            # 3. TRANSFERT VERS GOOGLE DRIVE (Placé ici pour garantir l'exécution)
             upload_to_drive(temp_name, temp_name, langue)
             
-                        
-            # Confirmation à l'utilisateur
+            # 4. Confirmation finale
             bot.reply_to(message, f"✅ Merci ! Ta contribution en **{langue}** est sauvegardée dans l'archive et sur le Drive.", parse_mode='Markdown')
             
-            # Nettoyage du fichier temporaire
+            # Nettoyage
             if os.path.exists(temp_name):
                 os.remove(temp_name)
 
@@ -138,10 +127,7 @@ def save_vocal(message, langue, mission):
             
 # --- LANCEMENT ---
 if __name__ == '__main__':
-    # 1. Lancer le serveur Flask en arrière-plan
     keep_alive()
     print(f"Serveur Web activé sur le port {PORT}")
-    
-    # 2. Lancer le bot Telegram avec infinity_polling (plus stable)
     print("Bot IA Langues Ivoiriennes démarré...")
     bot.infinity_polling(timeout=20, long_polling_timeout=10)
