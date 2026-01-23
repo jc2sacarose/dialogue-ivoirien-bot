@@ -7,30 +7,31 @@ from googleapiclient.http import MediaFileUpload
 from flask import Flask
 from threading import Thread
 
-# --- SERVEUR POUR RENDER ---
-# Ce bloc permet à Render de voir que ton application est "vivante"
+# --- CONFIGURATION VIA VARIABLES D'ENVIRONNEMENT ---
+# On utilise os.environ.get pour plus de sécurité et de flexibilité sur Render
+API_TOKEN = os.environ.get('TELE_TOKEN', '8531832542:AAEOejvyJ8vNL3BglMOhtm65lp4LsHLZMm4')
+FOLDER_ID = os.environ.get('FOLDER_ID', '1HRWpj38G4GLB2PLHo1Eh0jvKXi1zdoLe')
+PORT = int(os.environ.get('PORT', 10000))
+SERVICE_ACCOUNT_FILE = '/etc/secrets/service_account.json'
+SCOPES = ['https://www.googleapis.com/auth/drive.file']
+
+# --- SERVEUR WEB (FLASK) POUR RENDER ---
+# Indispensable pour éviter l'erreur "No open ports detected"
 app = Flask('')
 
 @app.route('/')
 def home():
-    return "Bot is running!"
+    return "Bot IA Langues Ivoiriennes en cours d'exécution..."
 
 def run_flask():
-    # Render utilise le port 10000 par défaut
-    port = int(os.environ.get('PORT', 10000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=PORT)
 
 def keep_alive():
     t = Thread(target=run_flask)
+    t.daemon = True # Le thread s'arrêtera si le programme principal s'arrête
     t.start()
-# ---------------------------
 
-# --- CONFIGURATION ---
-API_TOKEN = '8531832542:AAEOejvyJ8vNL3BglMOhtm65lp4LsHLZMm4'
-FOLDER_ID = '1HRWpj38G4GLB2PLHo1Eh0jvKXi1zdoLe'
-SERVICE_ACCOUNT_FILE = '/etc/secrets/service_account.json'
-SCOPES = ['https://www.googleapis.com/auth/drive.file']
-
+# --- INITIALISATION DU BOT ---
 bot = telebot.TeleBot(API_TOKEN)
 
 MENU_LANGUES = [
@@ -59,13 +60,18 @@ MISSIONS = [
 
 def upload_to_drive(file_path, file_name, langue):
     try:
+        if not os.path.exists(SERVICE_ACCOUNT_FILE):
+            print(f"Erreur : Le fichier secret {SERVICE_ACCOUNT_FILE} est introuvable.")
+            return
+            
         creds = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
         service = build('drive', 'v3', credentials=creds)
         metadata = {'name': f"{langue}_{file_name}", 'parents': [FOLDER_ID]}
         media = MediaFileUpload(file_path, mimetype='audio/ogg')
         service.files().create(body=metadata, media_body=media, fields='id', supportsAllDrives=True).execute()
+        print(f"Fichier {file_name} envoyé sur Drive avec succès.")
     except Exception as e:
-        print(f"Erreur Drive: {e}")
+        print(f"Erreur lors de l'envoi Drive: {e}")
 
 @bot.message_handler(commands=['start', 'collecte'])
 def start(message):
@@ -84,25 +90,33 @@ def donner_mission(message):
 def save_vocal(message, langue, mission):
     if message.content_type == 'voice':
         try:
-            bot.reply_to(message, "⏳ Enregistrement sécurisé...")
+            bot.reply_to(message, "⏳ Enregistrement sécurisé en cours...")
             file_info = bot.get_file(message.voice.file_id)
             downloaded = bot.download_file(file_info.file_path)
+            
+            # Nettoyage du nom de fichier pour éviter les erreurs de caractères
             safe_mission = "".join(x for x in mission[:15] if x.isalnum())
             temp_name = f"{langue}_{safe_mission}_{message.date}.ogg"
+            
             with open(temp_name, 'wb') as f:
                 f.write(downloaded)
+                
             upload_to_drive(temp_name, temp_name, langue)
             bot.reply_to(message, f"✅ Merci ! Ta contribution en **{langue}** est sauvegardée.", parse_mode='Markdown')
-            os.remove(temp_name)
+            
+            if os.path.exists(temp_name):
+                os.remove(temp_name)
         except Exception as e:
-            bot.reply_to(message, f"❌ Erreur : {str(e)}")
+            bot.reply_to(message, f"❌ Erreur technique : {str(e)}")
     else:
-        bot.reply_to(message, "⚠️ Envoie un vocal pour continuer.")
+        bot.reply_to(message, "⚠️ Ce n'est pas un vocal. Recommence avec /collecte.")
 
+# --- LANCEMENT ---
 if __name__ == '__main__':
-    # 1. On lance le serveur web en arrière-plan pour Render
+    # 1. Lancer le serveur Flask en arrière-plan
     keep_alive()
-    # 2. On lance le bot Telegram
-    print("Bot démarré...")
-    bot.infinity_polling(timeout=10, long_polling_timeout=5)
+    print(f"Serveur Web activé sur le port {PORT}")
     
+    # 2. Lancer le bot Telegram avec infinity_polling (plus stable)
+    print("Bot IA Langues Ivoiriennes démarré...")
+    bot.infinity_polling(timeout=20, long_polling_timeout=10)
