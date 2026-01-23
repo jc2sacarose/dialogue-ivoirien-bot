@@ -91,26 +91,45 @@ def save_vocal(message, langue, mission):
     if message.content_type == 'voice':
         try:
             bot.reply_to(message, "⏳ Enregistrement sécurisé en cours...")
+            
+            # 1. Téléchargement du fichier depuis Telegram
             file_info = bot.get_file(message.voice.file_id)
             downloaded = bot.download_file(file_info.file_path)
             
-            # Nettoyage du nom de fichier pour éviter les erreurs de caractères
+            # Nom propre pour le fichier
             safe_mission = "".join(x for x in mission[:15] if x.isalnum())
             temp_name = f"{langue}_{safe_mission}_{message.date}.ogg"
             
+            # Sauvegarde temporaire sur le serveur Render
             with open(temp_name, 'wb') as f:
                 f.write(downloaded)
-                
+
+            # --- AJOUT : TRANSFERT VERS LE GROUPE D'ARCHIVE TELEGRAM ---
+            # On récupère l'ID du groupe depuis tes variables d'environnement
+            archive_id = os.environ.get('ARCHIVE_ID', '-1003561100537') 
+            with open(temp_name, 'rb') as voice_file:
+                bot.send_voice(
+                    chat_id=archive_id, 
+                    voice=voice_file, 
+                    caption=f"🎙 **Audio {langue} reçu**\n📝 Phrase : {mission}\n👤 Par : @{message.from_user.username or message.from_user.first_name}"
+                )
+
+            # --- TRANSFERT VERS GOOGLE DRIVE ---
             upload_to_drive(temp_name, temp_name, langue)
-            bot.reply_to(message, f"✅ Merci ! Ta contribution en **{langue}** est sauvegardée.", parse_mode='Markdown')
+
+            # Confirmation à l'utilisateur
+            bot.reply_to(message, f"✅ Merci ! Ta contribution en **{langue}** est sauvegardée dans l'archive et sur le Drive.", parse_mode='Markdown')
             
+            # Nettoyage du fichier temporaire
             if os.path.exists(temp_name):
                 os.remove(temp_name)
+
         except Exception as e:
+            print(f"Erreur lors du transfert : {e}")
             bot.reply_to(message, f"❌ Erreur technique : {str(e)}")
     else:
         bot.reply_to(message, "⚠️ Ce n'est pas un vocal. Recommence avec /collecte.")
-
+            
 # --- LANCEMENT ---
 if __name__ == '__main__':
     # 1. Lancer le serveur Flask en arrière-plan
