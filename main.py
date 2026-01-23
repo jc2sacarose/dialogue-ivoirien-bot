@@ -7,19 +7,18 @@ from googleapiclient.http import MediaFileUpload
 from flask import Flask
 from threading import Thread
 
-# --- CONFIGURATION VIA VARIABLES D'ENVIRONNEMENT ---
+# --- CONFIGURATION ---
 API_TOKEN = os.environ.get('TELE_TOKEN', '8531832542:AAEOejvyJ8vNL3BglMOhtm65lp4LsHLZMm4')
 FOLDER_ID = os.environ.get('FOLDER_ID', '1HRWpj38G4GLB2PLHo1Eh0jvKXi1zdoLe')
 PORT = int(os.environ.get('PORT', 10000))
 SERVICE_ACCOUNT_FILE = '/etc/secrets/service_account.json'
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
-# --- SERVEUR WEB (FLASK) POUR RENDER ---
 app = Flask('')
 
 @app.route('/')
 def home():
-    return "Bot IA Langues Ivoiriennes en cours d'exécution..."
+    return "Bot IA Langues Ivoiriennes en ligne"
 
 def run_flask():
     app.run(host='0.0.0.0', port=PORT)
@@ -29,18 +28,13 @@ def keep_alive():
     t.daemon = True
     t.start()
 
-# --- INITIALISATION DU BOT ---
 bot = telebot.TeleBot(API_TOKEN)
 
 MENU_LANGUES = [
-    ['Baoulé', 'Dioula', 'Bété'],
-    ['Yacouba', 'Guéré', 'Attié'],
-    ['Adioukrou', 'Agni', 'Abidji'],
-    ['Kroumen', 'Gagou', 'Sénoufo'],
-    ['Andô', 'Dida', 'Avikam'],
-    ['Tagbanan', 'Wobé', 'Ebrié'],
-    ['Toura', 'Odiennka'],
-    ['Ajoutez votre langue ici'],
+    ['Baoulé', 'Dioula', 'Bété'], ['Yacouba', 'Guéré', 'Attié'],
+    ['Adioukrou', 'Agni', 'Abidji'], ['Kroumen', 'Gagou', 'Sénoufo'],
+    ['Andô', 'Dida', 'Avikam'], ['Tagbanan', 'Wobé', 'Ebrié'],
+    ['Toura', 'Odiennka'], ['Ajoutez votre langue ici']
 ]
 
 MISSIONS = [
@@ -59,30 +53,29 @@ MISSIONS = [
 def upload_to_drive(file_path, file_name, langue):
     try:
         if not os.path.exists(SERVICE_ACCOUNT_FILE):
-            print(f"Erreur : Le fichier secret {SERVICE_ACCOUNT_FILE} est introuvable.")
+            print(f"Erreur : Secret introuvable.")
             return
-            
         creds = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
         service = build('drive', 'v3', credentials=creds)
         metadata = {'name': f"{langue}_{file_name}", 'parents': [FOLDER_ID]}
         media = MediaFileUpload(file_path, mimetype='audio/ogg')
         service.files().create(body=metadata, media_body=media, fields='id', supportsAllDrives=True).execute()
-        print(f"Fichier {file_name} envoyé sur Drive avec succès.")
+        print(f"Fichier envoyé sur Drive.")
     except Exception as e:
-        print(f"Erreur lors de l'envoi Drive: {e}")
+        print(f"Erreur Drive: {e}")
 
 @bot.message_handler(commands=['start', 'collecte'])
 def start(message):
     markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
     for ligne in MENU_LANGUES:
         markup.add(*ligne)
-    msg = bot.reply_to(message, "🇨🇮 **Archive des Langues Ivoiriennes**\n\nChoisis ta langue maternelle :", reply_markup=markup, parse_mode='Markdown')
+    msg = bot.reply_to(message, "🇨🇮 **Archive des Langues Ivoiriennes**\n\nChoisis ta langue :", reply_markup=markup, parse_mode='Markdown')
     bot.register_next_step_handler(msg, donner_mission)
 
 def donner_mission(message):
     langue = message.text
     mission = random.choice(MISSIONS)
-    msg = bot.reply_to(message, f"📍 **Langue : {langue}**\n\nTa mission : Enregistre un vocal en disant :\n\n👉 *\"{mission}\"*", parse_mode='Markdown')
+    msg = bot.reply_to(message, f"📍 **Langue : {langue}**\n\nMission : Enregistre :\n👉 *\"{mission}\"*", parse_mode='Markdown')
     bot.register_next_step_handler(msg, lambda m: save_vocal(m, langue, mission))
 
 def save_vocal(message, langue, mission):
@@ -90,7 +83,6 @@ def save_vocal(message, langue, mission):
         try:
             bot.reply_to(message, "⏳ Enregistrement sécurisé en cours...")
             
-            # 1. Téléchargement du fichier
             file_info = bot.get_file(message.voice.file_id)
             downloaded = bot.download_file(file_info.file_path)
             
@@ -100,7 +92,7 @@ def save_vocal(message, langue, mission):
             with open(temp_name, 'wb') as f:
                 f.write(downloaded)
 
-            # 2. TRANSFERT VERS L'ARCHIVE TELEGRAM (Nettoyé pour éviter les doublons)
+            # --- ENVOI UNIQUE TELEGRAM ---
             archive_id = os.environ.get('ARCHIVE_ID', '-1003561100537') 
             with open(temp_name, 'rb') as voice_file:
                 bot.send_voice(
@@ -109,25 +101,21 @@ def save_vocal(message, langue, mission):
                     caption=f"🎙 **Audio {langue} reçu**\n📝 Phrase : {mission}\n👤 Par : @{message.from_user.username or message.from_user.first_name}"
                 )
 
-            # 3. TRANSFERT VERS GOOGLE DRIVE (Placé ici pour garantir l'exécution)
+            # --- ENVOI DRIVE ---
             upload_to_drive(temp_name, temp_name, langue)
             
-            # 4. Confirmation finale
-            bot.reply_to(message, f"✅ Merci ! Ta contribution en **{langue}** est sauvegardée dans l'archive et sur le Drive.", parse_mode='Markdown')
+            bot.reply_to(message, f"✅ Merci ! Ta contribution en **{langue}** est sauvegardée.", parse_mode='Markdown')
             
-            # Nettoyage
             if os.path.exists(temp_name):
                 os.remove(temp_name)
 
         except Exception as e:
-            print(f"Erreur lors du transfert : {e}")
             bot.reply_to(message, f"❌ Erreur technique : {str(e)}")
     else:
-        bot.reply_to(message, "⚠️ Ce n'est pas un vocal. Recommence avec /collecte.")
+        bot.reply_to(message, "⚠️ Envoie un vocal.")
             
-# --- LANCEMENT ---
 if __name__ == '__main__':
     keep_alive()
-    print(f"Serveur Web activé sur le port {PORT}")
-    print("Bot IA Langues Ivoiriennes démarré...")
-    bot.infinity_polling(timeout=20, long_polling_timeout=10)
+    print("Bot démarré...")
+    # Correction pour l'erreur 409 : skip_pending=True nettoie les anciens messages
+    bot.infinity_polling(timeout=20, long_polling_timeout=10, skip_pending=True)
