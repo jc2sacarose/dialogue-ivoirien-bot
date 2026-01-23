@@ -4,16 +4,34 @@ import random
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
+from flask import Flask
+from threading import Thread
+
+# --- SERVEUR POUR RENDER ---
+# Ce bloc permet à Render de voir que ton application est "vivante"
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Bot is running!"
+
+def run_flask():
+    # Render utilise le port 10000 par défaut
+    port = int(os.environ.get('PORT', 10000))
+    app.run(host='0.0.0.0', port=port)
+
+def keep_alive():
+    t = Thread(target=run_flask)
+    t.start()
+# ---------------------------
 
 # --- CONFIGURATION ---
-# Token officiel vérifié sur ta capture BotFather
 API_TOKEN = '8531832542:AAEOejvyJ8vNL3BglMOhtm65lp4LsHLZMm4'
 FOLDER_ID = '1HRWpj38G4GLB2PLHo1Eh0jvKXi1zdoLe'
-# ---------------------
-
-bot = telebot.TeleBot(API_TOKEN)
 SERVICE_ACCOUNT_FILE = '/etc/secrets/service_account.json'
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
+
+bot = telebot.TeleBot(API_TOKEN)
 
 MENU_LANGUES = [
     ['Baoulé', 'Dioula', 'Bété'],
@@ -34,18 +52,20 @@ MISSIONS = [
     "Viens t'asseoir, on va causer.", "Comment appelle-t-on la mangue ?",
     "Peux-tu me dire comment était le travail ?", "Comment dit-on bonjour ?",
     "Fais passer les enfants et les vieux.", "Je veux comprendre ton problème.",
-    "J' J'ai besoin de ton aide.", "Bon voyage à vous !", "Compte jusqu'à 10.",
+    "J'ai besoin de ton aide.", "Bon voyage à vous !", "Compte jusqu'à 10.",
     "Combien coûte celui-ci ?", "Je suis à la maison.", "Je suis malade aujourd'hui.",
     "Je ne mange pas beaucoup."
 ]
 
 def upload_to_drive(file_path, file_name, langue):
-    creds = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
-    service = build('drive', 'v3', credentials=creds)
-    metadata = {'name': f"{langue}_{file_name}", 'parents': [FOLDER_ID]}
-    media = MediaFileUpload(file_path, mimetype='audio/ogg')
-    # Correction cruciale pour les permissions Google Drive
-    service.files().create(body=metadata, media_body=media, fields='id', supportsAllDrives=True).execute()
+    try:
+        creds = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+        service = build('drive', 'v3', credentials=creds)
+        metadata = {'name': f"{langue}_{file_name}", 'parents': [FOLDER_ID]}
+        media = MediaFileUpload(file_path, mimetype='audio/ogg')
+        service.files().create(body=metadata, media_body=media, fields='id', supportsAllDrives=True).execute()
+    except Exception as e:
+        print(f"Erreur Drive: {e}")
 
 @bot.message_handler(commands=['start', 'collecte'])
 def start(message):
@@ -79,6 +99,10 @@ def save_vocal(message, langue, mission):
     else:
         bot.reply_to(message, "⚠️ Envoie un vocal pour continuer.")
 
-# Lancement de l'écoute des messages
-bot.polling()
-                                                                  
+if __name__ == '__main__':
+    # 1. On lance le serveur web en arrière-plan pour Render
+    keep_alive()
+    # 2. On lance le bot Telegram
+    print("Bot démarré...")
+    bot.infinity_polling(timeout=10, long_polling_timeout=5)
+    
