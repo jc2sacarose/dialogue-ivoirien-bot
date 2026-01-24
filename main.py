@@ -119,3 +119,4 @@ if __name__ == '__main__':
     print("Bot démarré...")
     # Correction pour l'erreur 409 : skip_pending=True nettoie les anciens messages
     bot.infinity_polling(timeout=20, long_polling_timeout=10, skip_pending=True)
+
