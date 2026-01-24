@@ -8,7 +8,7 @@ from flask import Flask
 from threading import Thread
 
 # --- CONFIGURATION ---
-API_TOKEN = os.environ.get('TELE_TOKEN', '8531832542:AAEOejvyJ8vNL3BglMOhtm65lp4LsHLZMm4')
+API_TOKEN = os.environ.get('TELE_TOKEN', '8531832542:AAG6qRxlYLFZT1vfJsCXqXfPOuvJJdQpvlQ')
 FOLDER_ID = os.environ.get('FOLDER_ID', '1HRWpj38G4GLB2PLHo1Eh0jvKXi1zdoLe')
 PORT = int(os.environ.get('PORT', 10000))
 SERVICE_ACCOUNT_FILE = '/etc/secrets/service_account.json'
