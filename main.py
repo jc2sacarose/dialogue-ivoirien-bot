@@ -13,11 +13,13 @@ genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 model = genai.GenerativeModel('gemini-1.5-flash')
 
 def obtenir_reponse_ia(langue, mission):
+    # On rend le prompt plus direct pour forcer une réponse
     prompt = (
-        f"Tu es un expert des langues ivoiriennes. L'utilisateur vient d'enregistrer une phrase en {langue} : '{mission}'. "
-        f"Réponds-lui de manière très chaleureuse en nouchi ou en français ivoirien. "
-        f"Félicite-le pour sa contribution et donne-lui une anecdote sur la langue {langue}."
+        f"Tu es un expert en culture de Côte d'Ivoire. Un utilisateur vient de t'envoyer un vocal en {langue} "
+        f"pour la phrase : '{mission}'. Réponds-lui en nouchi ou en français de Moussa. "
+        f"Félicite-le chaudement et donne-lui un petit secret ou une anecdote sur la langue {langue}."
     )
+    
     try:
         response = model.generate_content(prompt)
         return response.text
