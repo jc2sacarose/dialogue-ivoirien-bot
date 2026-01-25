@@ -62,7 +62,6 @@ MISSIONS = [
     "On dit quoi ? La famille va bien ?", "Le travail finit par payer.",
     "Viens t'asseoir, on va causer."
 ]
-
 def upload_to_drive(file_path, file_name, langue):
     try:
         if not os.path.exists(SERVICE_ACCOUNT_FILE):
@@ -79,7 +78,7 @@ def upload_to_drive(file_path, file_name, langue):
         print(f"✅ Succès : {file_name} envoyé sur Drive.")
     except Exception as e:
         print(f"⚠️ Erreur Drive précise : {type(e).__name__} - {e}")
-
+        
 @bot.message_handler(commands=['start', 'collecte'])
 def start(message):
     markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
