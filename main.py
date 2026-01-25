@@ -6,6 +6,25 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from flask import Flask
 from threading import Thread
+import google.generativeai as genai
+
+# --- CONFIGURATION IA GEMINI (Unique et Propre) ---
+genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+model = genai.GenerativeModel('gemini-1.5-flash')
+
+def obtenir_reponse_ia(langue, mission):
+    prompt = (
+        f"Tu es un expert des langues ivoiriennes. L'utilisateur vient d'enregistrer une phrase en {langue} : '{mission}'. "
+        f"Réponds-lui de manière très chaleureuse en nouchi ou en français ivoirien. "
+        f"Félicite-le pour sa contribution à la sauvegarde du patrimoine et donne-lui une petite anecdote courte sur la langue {langue}."
+    )
+    try:
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        # En cas d'erreur IA, on donne une réponse de secours polie
+        return f"Merci beaucoup pour ta contribution en {langue} ! Ton enregistrement est bien sauvegardé. 🇨🇮"
+        
 
 # --- CONFIGURATION ---
 API_TOKEN = os.environ.get('TELE_TOKEN', '8531832542:AAG6qRxlYLFZT1vfJsCXqXfPOuvJJdQpvlQ')
