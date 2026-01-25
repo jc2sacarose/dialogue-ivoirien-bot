@@ -8,7 +8,7 @@ from flask import Flask
 from threading import Thread
 import google.generativeai as genai
 
-# --- CONFIGURATION IA GEMINI (Unique et Propre) ---
+# --- CONFIGURATION IA GEMINI ---
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 model = genai.GenerativeModel('gemini-1.5-flash')
 
@@ -22,9 +22,7 @@ def obtenir_reponse_ia(langue, mission):
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        # En cas d'erreur IA, on donne une réponse de secours polie
         return f"Merci beaucoup pour ta contribution en {langue} ! Ton enregistrement est bien sauvegardé. 🇨🇮"
-        
 
 # --- CONFIGURATION ---
 API_TOKEN = os.environ.get('TELE_TOKEN', '8531832542:AAG6qRxlYLFZT1vfJsCXqXfPOuvJJdQpvlQ')
@@ -72,14 +70,14 @@ MISSIONS = [
 def upload_to_drive(file_path, file_name, langue):
     try:
         if not os.path.exists(SERVICE_ACCOUNT_FILE):
-            print(f"Erreur : Secret introuvable.")
+            print("Erreur : Secret introuvable.")
             return
         creds = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
         service = build('drive', 'v3', credentials=creds)
         metadata = {'name': f"{langue}_{file_name}", 'parents': [FOLDER_ID]}
         media = MediaFileUpload(file_path, mimetype='audio/ogg')
         service.files().create(body=metadata, media_body=media, fields='id', supportsAllDrives=True).execute()
-        print(f"Fichier envoyé sur Drive.")
+        print("Fichier envoyé sur Drive.")
     except Exception as e:
         print(f"Erreur Drive: {e}")
 
@@ -111,7 +109,6 @@ def save_vocal(message, langue, mission):
             with open(temp_name, 'wb') as f:
                 f.write(downloaded)
 
-            # --- ENVOI UNIQUE TELEGRAM ---
             archive_id = os.environ.get('ARCHIVE_ID', '-1003561100537') 
             with open(temp_name, 'rb') as voice_file:
                 bot.send_voice(
@@ -120,10 +117,12 @@ def save_vocal(message, langue, mission):
                     caption=f"🎙 **Audio {langue} reçu**\n📝 Phrase : {mission}\n👤 Par : @{message.from_user.username or message.from_user.first_name}"
                 )
 
-            # --- ENVOI DRIVE ---
             upload_to_drive(temp_name, temp_name, langue)
             
-            bot.reply_to(message, f"✅ Merci ! Ta contribution en **{langue}** est sauvegardée.", parse_mode='Markdown')
+            # --- GÉNÉRATION DE LA RÉPONSE PAR L'IA ---
+            reponse_ia = obtenir_reponse_ia(langue, mission)
+            bot.reply_to(message, reponse_ia)
+            bot.send_message(message.chat.id, "📁 Ton vocal a également été sauvegardé sur Google Drive et dans l'archive.")
             
             if os.path.exists(temp_name):
                 os.remove(temp_name)
@@ -136,6 +135,4 @@ def save_vocal(message, langue, mission):
 if __name__ == '__main__':
     keep_alive()
     print("Bot démarré...")
-    # Correction pour l'erreur 409 : skip_pending=True nettoie les anciens messages
     bot.infinity_polling(timeout=20, long_polling_timeout=10, skip_pending=True)
-
