@@ -13,25 +13,25 @@ genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 model = genai.GenerativeModel('gemini-1.5-flash')
 
 def obtenir_reponse_ia(langue, mission):
-    # On rend le prompt plus direct pour forcer une réponse
     prompt = (
         f"Tu es un expert en culture de Côte d'Ivoire. Un utilisateur vient de t'envoyer un vocal en {langue} "
         f"pour la phrase : '{mission}'. Réponds-lui en nouchi ou en français de Moussa. "
-        f"Félicite-le chaudement et donne-lui un petit secret ou une anecdote sur la langue {langue}."
+        f"Félicite-le chaudement et donne-lui une anecdote sur la langue {langue}."
     )
-    
     try:
         response = model.generate_content(prompt)
         return response.text
-    except Exception:
+    except Exception as e:
+        print(f"Erreur Gemini: {e}")
         return f"Merci pour ta contribution en {langue} ! C'est ensemble qu'on protège nos racines. 🇨🇮"
 
 # --- CONFIGURATION ---
-API_TOKEN = os.environ.get('TELE_TOKEN', '8531832542:AAG6qRxlYLFZT1vfJsCXqXfPOuvJJdQpvlQ')
-FOLDER_ID = os.environ.get('FOLDER_ID', '1HRWpj38G4GLB2PLHo1Eh0jvKXi1zdoLe')
+API_TOKEN = os.environ.get('TELE_TOKEN')
+FOLDER_ID = os.environ.get('FOLDER_ID')
 PORT = int(os.environ.get('PORT', 10000))
 SERVICE_ACCOUNT_FILE = '/etc/secrets/service_account.json'
-SCOPES = ['https://www.googleapis.com/auth/drive.file']
+# Scope élargi pour éviter les erreurs de permission
+SCOPES = ['https://www.googleapis.com/auth/drive']
 
 app = Flask('')
 
@@ -67,16 +67,19 @@ MISSIONS = [
 def upload_to_drive(file_path, file_name, langue):
     try:
         if not os.path.exists(SERVICE_ACCOUNT_FILE):
-            print("Erreur : Fichier secret JSON introuvable sur Render.")
+            print(f"❌ Erreur : Le fichier {SERVICE_ACCOUNT_FILE} est introuvable !")
             return
+        
         creds = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
         service = build('drive', 'v3', credentials=creds)
+        
         metadata = {'name': f"{langue}_{file_name}", 'parents': [FOLDER_ID]}
         media = MediaFileUpload(file_path, mimetype='audio/ogg')
+        
         service.files().create(body=metadata, media_body=media, fields='id', supportsAllDrives=True).execute()
-        print("Réussi : Fichier envoyé sur Drive.")
+        print(f"✅ Succès : {file_name} envoyé sur Drive.")
     except Exception as e:
-        print(f"Erreur Drive: {e}")
+        print(f"⚠️ Erreur Drive précise : {type(e).__name__} - {e}")
 
 @bot.message_handler(commands=['start', 'collecte'])
 def start(message):
@@ -124,4 +127,6 @@ def save_vocal(message, langue, mission):
             
 if __name__ == '__main__':
     keep_alive()
+    print("Bot démarré et prêt !")
     bot.infinity_polling(skip_pending=True)
+    
