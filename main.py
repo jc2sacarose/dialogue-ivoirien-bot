@@ -30,7 +30,6 @@ API_TOKEN = os.environ.get('TELE_TOKEN')
 FOLDER_ID = os.environ.get('FOLDER_ID')
 PORT = int(os.environ.get('PORT', 10000))
 SERVICE_ACCOUNT_FILE = '/etc/secrets/service_account.json'
-# Scope élargi pour éviter les erreurs de permission
 SCOPES = ['https://www.googleapis.com/auth/drive']
 
 app = Flask('')
