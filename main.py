@@ -16,13 +16,13 @@ def obtenir_reponse_ia(langue, mission):
     prompt = (
         f"Tu es un expert des langues ivoiriennes. L'utilisateur vient d'enregistrer une phrase en {langue} : '{mission}'. "
         f"Réponds-lui de manière très chaleureuse en nouchi ou en français ivoirien. "
-        f"Félicite-le pour sa contribution à la sauvegarde du patrimoine et donne-lui une petite anecdote courte sur la langue {langue}."
+        f"Félicite-le pour sa contribution et donne-lui une anecdote sur la langue {langue}."
     )
     try:
         response = model.generate_content(prompt)
         return response.text
-    except Exception as e:
-        return f"Merci beaucoup pour ta contribution en {langue} ! Ton enregistrement est bien sauvegardé. 🇨🇮"
+    except Exception:
+        return f"Merci pour ta contribution en {langue} ! C'est ensemble qu'on protège nos racines. 🇨🇮"
 
 # --- CONFIGURATION ---
 API_TOKEN = os.environ.get('TELE_TOKEN', '8531832542:AAG6qRxlYLFZT1vfJsCXqXfPOuvJJdQpvlQ')
@@ -59,25 +59,20 @@ MISSIONS = [
     "Où se trouve le marché le plus proche ?", "Bonne arrivée chez nous.",
     "Je cherche un taxi pour aller en ville.", "Il faut pardonner, c'est Dieu qui donne.",
     "On dit quoi ? La famille va bien ?", "Le travail finit par payer.",
-    "Viens t'asseoir, on va causer.", "Comment appelle-t-on la mangue ?",
-    "Peux-tu me dire comment était le travail ?", "Comment dit-on bonjour ?",
-    "Fais passer les enfants et les vieux.", "Je veux comprendre ton problème.",
-    "J'ai besoin de ton aide.", "Bon voyage à vous !", "Compte jusqu'à 10.",
-    "Combien coûte celui-ci ?", "Je suis à la maison.", "Je suis malade aujourd'hui.",
-    "Je ne mange pas beaucoup."
+    "Viens t'asseoir, on va causer."
 ]
 
 def upload_to_drive(file_path, file_name, langue):
     try:
         if not os.path.exists(SERVICE_ACCOUNT_FILE):
-            print("Erreur : Secret introuvable.")
+            print("Erreur : Fichier secret JSON introuvable sur Render.")
             return
         creds = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
         service = build('drive', 'v3', credentials=creds)
         metadata = {'name': f"{langue}_{file_name}", 'parents': [FOLDER_ID]}
         media = MediaFileUpload(file_path, mimetype='audio/ogg')
         service.files().create(body=metadata, media_body=media, fields='id', supportsAllDrives=True).execute()
-        print("Fichier envoyé sur Drive.")
+        print("Réussi : Fichier envoyé sur Drive.")
     except Exception as e:
         print(f"Erreur Drive: {e}")
 
@@ -99,40 +94,32 @@ def save_vocal(message, langue, mission):
     if message.content_type == 'voice':
         try:
             bot.reply_to(message, "⏳ Enregistrement sécurisé en cours...")
-            
             file_info = bot.get_file(message.voice.file_id)
             downloaded = bot.download_file(file_info.file_path)
             
-            safe_mission = "".join(x for x in mission[:15] if x.isalnum())
-            temp_name = f"{langue}_{safe_mission}_{message.date}.ogg"
-            
+            temp_name = f"{langue}_{message.date}.ogg"
             with open(temp_name, 'wb') as f:
                 f.write(downloaded)
 
+            # Archive Telegram
             archive_id = os.environ.get('ARCHIVE_ID', '-1003561100537') 
             with open(temp_name, 'rb') as voice_file:
-                bot.send_voice(
-                    chat_id=archive_id, 
-                    voice=voice_file, 
-                    caption=f"🎙 **Audio {langue} reçu**\n📝 Phrase : {mission}\n👤 Par : @{message.from_user.username or message.from_user.first_name}"
-                )
+                bot.send_voice(chat_id=archive_id, voice=voice_file, caption=f"🎙 Audio {langue}\n📝 Phrase : {mission}")
 
+            # Envoi Drive
             upload_to_drive(temp_name, temp_name, langue)
             
-            # --- GÉNÉRATION DE LA RÉPONSE PAR L'IA ---
+            # IA Gemini
             reponse_ia = obtenir_reponse_ia(langue, mission)
             bot.reply_to(message, reponse_ia)
-            bot.send_message(message.chat.id, "📁 Ton vocal a également été sauvegardé sur Google Drive et dans l'archive.")
             
             if os.path.exists(temp_name):
                 os.remove(temp_name)
-
         except Exception as e:
-            bot.reply_to(message, f"❌ Erreur technique : {str(e)}")
+            bot.reply_to(message, f"❌ Erreur : {str(e)}")
     else:
         bot.reply_to(message, "⚠️ Envoie un vocal.")
             
 if __name__ == '__main__':
     keep_alive()
-    print("Bot démarré...")
-    bot.infinity_polling(timeout=20, long_polling_timeout=10, skip_pending=True)
+    bot.infinity_polling(skip_pending=True)
