@@ -30,7 +30,7 @@ def obtenir_reponse_ia(langue, mission):
 # --- CONFIGURATION GENERALE ---
 API_TOKEN = os.environ.get('TELE_TOKEN')
 FOLDER_ID = os.environ.get('FOLDER_ID')
-ARCHIVE_ID = os.environ.get('ARCHIVE_GROUP_ID') # Note le changement ici pour correspondre à ta capture
+ARCHIVE_ID = os.environ.get('ARCHIVE_GROUP_ID')
 PORT = int(os.environ.get('PORT', 10000))
 SERVICE_ACCOUNT_FILE = '/etc/secrets/service_account.json'
 SCOPES = ['https://www.googleapis.com/auth/drive']
@@ -65,6 +65,7 @@ MISSIONS = [
     "On dit quoi ? La famille va bien ?", "Le travail finit par payer.",
     "Viens t'asseoir, on va causer."
 ]
+
 def upload_to_drive(file_path, file_name, langue):
     try:
         if not os.path.exists(SERVICE_ACCOUNT_FILE):
@@ -74,7 +75,6 @@ def upload_to_drive(file_path, file_name, langue):
         creds = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
         service = build('drive', 'v3', credentials=creds)
         
-        # On force l'utilisation de fields='id' pour éviter le conflit 409
         metadata = {'name': f"{langue}_{file_name}", 'parents': [FOLDER_ID]}
         media = MediaFileUpload(file_path, mimetype='audio/ogg', resumable=True)
         
@@ -82,7 +82,6 @@ def upload_to_drive(file_path, file_name, langue):
         print(f"✅ Drive Succès: {file.get('id')}")
     except Exception as e:
         print(f"⚠️ Drive Erreur: {e}")
-        
 
 @bot.message_handler(commands=['start', 'collecte'])
 def start(message):
@@ -114,12 +113,18 @@ def save_vocal(message, langue, mission):
 
             upload_to_drive(temp_name, temp_name, langue)
             reponse_ia = obtenir_reponse_ia(langue, mission)
-            bot.delete_message(message.chat.id, status_msg.message_id)
+            
+            try:
+                bot.delete_message(message.chat.id, status_msg.message_id)
+            except:
+                pass
+                
             bot.reply_to(message, reponse_ia)
             
             if os.path.exists(temp_name):
                 os.remove(temp_name)
         except Exception as e:
+            print(f"Erreur sauvegarde: {e}")
             bot.edit_message_text("✅ Audio bien reçu !", message.chat.id, status_msg.message_id)
     else:
         bot.reply_to(message, "⚠️ Envoie un vocal pour la mission.")
@@ -130,5 +135,6 @@ if __name__ == '__main__':
     while True:
         try:
             bot.infinity_polling(timeout=20, skip_pending=True)
-        except Exception:
+        except Exception as e:
+            print(f"Polling error: {e}")
             time.sleep(5)
