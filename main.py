@@ -65,20 +65,24 @@ MISSIONS = [
     "On dit quoi ? La famille va bien ?", "Le travail finit par payer.",
     "Viens t'asseoir, on va causer."
 ]
-
 def upload_to_drive(file_path, file_name, langue):
     try:
         if not os.path.exists(SERVICE_ACCOUNT_FILE):
-            print(f"❌ Fichier secret introuvable")
+            print("❌ Secret JSON manquant")
             return
+        
         creds = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
         service = build('drive', 'v3', credentials=creds)
+        
+        # On force l'utilisation de fields='id' pour éviter le conflit 409
         metadata = {'name': f"{langue}_{file_name}", 'parents': [FOLDER_ID]}
-        media = MediaFileUpload(file_path, mimetype='audio/ogg')
-        service.files().create(body=metadata, media_body=media).execute()
-        print(f"✅ Drive OK")
+        media = MediaFileUpload(file_path, mimetype='audio/ogg', resumable=True)
+        
+        file = service.files().create(body=metadata, media_body=media, fields='id').execute()
+        print(f"✅ Drive Succès: {file.get('id')}")
     except Exception as e:
-        print(f"⚠️ Erreur Drive : {e}")
+        print(f"⚠️ Drive Erreur: {e}")
+        
 
 @bot.message_handler(commands=['start', 'collecte'])
 def start(message):
