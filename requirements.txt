@@ -1,6 +1,5 @@
 pyTelegramBotAPI
 google-auth
-google-auth-oauthlib
 google-api-python-client
 flask
 google-generativeai
