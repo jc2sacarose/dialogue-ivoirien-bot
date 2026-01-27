@@ -30,7 +30,7 @@ def obtenir_reponse_ia(langue, mission):
 # --- CONFIGURATION GENERALE ---
 API_TOKEN = os.environ.get('TELE_TOKEN')
 FOLDER_ID = os.environ.get('FOLDER_ID')
-ARCHIVE_ID = os.environ.get('ARCHIVE_ID') # Assure-toi que c'est bien mis dans Render
+ARCHIVE_ID = os.environ.get('ARCHIVE_ID')
 PORT = int(os.environ.get('PORT', 10000))
 SERVICE_ACCOUNT_FILE = '/etc/secrets/service_account.json'
 SCOPES = ['https://www.googleapis.com/auth/drive']
@@ -49,7 +49,8 @@ def keep_alive():
     t.daemon = True
     t.start()
 
-bot = telebot.TeleBot(API_TOKEN)
+# Utilisation du bot avec un timeout plus long pour éviter les déconnexions
+bot = telebot.TeleBot(API_TOKEN, threaded=False) 
 
 MENU_LANGUES = [
     ['Baoulé', 'Dioula', 'Bété'], ['Yacouba', 'Guéré', 'Attié'],
@@ -78,7 +79,6 @@ def upload_to_drive(file_path, file_name, langue):
         metadata = {'name': f"{langue}_{file_name}", 'parents': [FOLDER_ID]}
         media = MediaFileUpload(file_path, mimetype='audio/ogg')
         
-        # Correction ici : retrait de supportsAllDrives pour plus de compatibilité
         file = service.files().create(body=metadata, media_body=media, fields='id').execute()
         print(f"✅ Drive : Fichier {file.get('id')} envoyé.")
     except Exception as e:
@@ -132,5 +132,10 @@ def save_vocal(message, langue, mission):
 if __name__ == '__main__':
     keep_alive()
     print("Bot démarré et prêt !")
-    bot.infinity_polling(timeout=10, long_polling_timeout=5)
-            
+    # Correction pour le déploiement sur Render : boucle infinie avec gestion d'erreurs
+    while True:
+        try:
+            bot.infinity_polling(timeout=20, long_polling_timeout=10, skip_pending=True)
+        except Exception as e:
+            print(f"Erreur de connexion, redémarrage du polling... : {e}")
+            time.sleep(5)
