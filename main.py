@@ -99,6 +99,9 @@ def donner_mission(message):
     bot.register_next_step_handler(msg, lambda m: save_vocal(m, langue, mission))
 
 def save_vocal(message, langue, mission):
+    # Ce message s'affiche DIRECTEMENT quand tu envoies le vocal
+    status_msg = bot.reply_to(message, "⏳ Enregistrement sécurisé en cours... Patientez un instant.")
+    
     if message.content_type == 'voice':
         try:
             bot.send_chat_action(message.chat.id, 'upload_voice')
@@ -109,33 +112,26 @@ def save_vocal(message, langue, mission):
             with open(temp_name, 'wb') as f:
                 f.write(downloaded)
 
-            # Archive Telegram
+            # 1. Archive Telegram
             if ARCHIVE_ID:
                 with open(temp_name, 'rb') as voice_file:
                     bot.send_voice(chat_id=ARCHIVE_ID, voice=voice_file, caption=f"🎙 Audio {langue}\n📝 Phrase : {mission}")
-
-            # Envoi Drive
+            
+            # 2. Envoi Drive
             upload_to_drive(temp_name, temp_name, langue)
             
-            # IA Gemini
+            # 3. IA Gemini (L'anecdote)
             reponse_ia = obtenir_reponse_ia(langue, mission)
+            
+            # On supprime le message de chargement et on envoie la réponse finale
+            bot.delete_message(message.chat.id, status_msg.message_id)
             bot.reply_to(message, reponse_ia)
             
             if os.path.exists(temp_name):
                 os.remove(temp_name)
+
         except Exception as e:
-            print(f"Erreur générale : {e}")
-            bot.reply_to(message, "Petit souci technique, mais l'audio est bien reçu !")
+            print(f"Erreur : {e}")
+            bot.edit_message_text("❌ Petit souci technique, mais l'audio est bien reçu !", message.chat.id, status_msg.message_id)
     else:
         bot.reply_to(message, "⚠️ Pardon, envoie un message vocal pour la mission.")
-
-if __name__ == '__main__':
-    keep_alive()
-    print("Bot démarré et prêt !")
-    # Correction pour le déploiement sur Render : boucle infinie avec gestion d'erreurs
-    while True:
-        try:
-            bot.infinity_polling(timeout=20, long_polling_timeout=10, skip_pending=True)
-        except Exception as e:
-            print(f"Erreur de connexion, redémarrage du polling... : {e}")
-            time.sleep(5)
