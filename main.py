@@ -6,38 +6,41 @@ from flask import Flask
 from threading import Thread
 import google.generativeai as genai
 
-# --- CONFIGURATION IA GEMINI ---
-# On s'assure que la clé est bien lue
+# --- CONFIGURATION IA ---
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-model = genai.GenerativeModel('gemini-pro')
+# Modèle flash pour la rapidité
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 def reponse_ia_ivoirienne(texte_utilisateur, est_vocal=False, langue=None):
     if est_vocal:
-        prompt = f"Un utilisateur a envoyé un vocal en {langue}. Félicite-le chaleureusement en nouchi (ivoirien) et donne une info culturelle rapide sur cette ethnie."
+        prompt = f"Félicite l'utilisateur en nouchi pour son vocal en {langue}."
     else:
-        prompt = f"Tu es un expert des langues de Côte d'Ivoire. Réponds à cette question en nouchi/français ivoirien de manière courte : {texte_utilisateur}"
+        prompt = f"Réponds en français ivoirien (nouchi) à : {texte_utilisateur}"
     
     try:
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        print(f"Erreur Gemini: {e}")
+        print(f"ERREUR GEMINI : {e}")
         return "C'est propre ! On est ensemble pour la culture. 🇨🇮"
 
-# --- CONFIGURATION GENERALE ---
+# --- CONFIGURATION SERVICES ---
 API_TOKEN = os.environ.get('TELE_TOKEN')
 FOLDER_ID = os.environ.get('FOLDER_ID')
 SERVICE_ACCOUNT_FILE = '/etc/secrets/service_account.json'
 
 app = Flask('')
 @app.route('/')
-def home(): return "Bot Ivoirien 2.0 Connecté"
+def home(): return "Bot En Ligne"
 
 bot = telebot.TeleBot(API_TOKEN, threaded=False)
 LANGUES = [['Baoulé', 'Dioula', 'Bété'], ['Yacouba', 'Guéré', 'Attié']]
 
 def upload_to_drive(file_path, file_name, langue):
     try:
+        if not os.path.exists(SERVICE_ACCOUNT_FILE):
+            print("❌ FICHIER SECRET MANQUANT SUR RENDER")
+            return
         creds = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=['https://www.googleapis.com/auth/drive'])
         service = build('drive', 'v3', credentials=creds)
         meta = {'name': f"{langue}_{file_name}", 'parents': [FOLDER_ID]}
@@ -45,19 +48,18 @@ def upload_to_drive(file_path, file_name, langue):
         service.files().create(body=meta, media_body=media).execute()
         print(f"✅ DRIVE OK")
     except Exception as e: 
-        print(f"❌ DRIVE ERREUR : {e}")
+        print(f"❌ ERREUR DRIVE : {e}")
 
 @bot.message_handler(commands=['start'])
 def start(m):
     kb = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
     for row in LANGUES: kb.add(*row)
-    text = "🇨🇮 **Bot Ivoirien V2**\n\nPose-moi une question (ex: 'Manger en Yacouba') ou choisis une langue pour envoyer un vocal !"
-    bot.send_message(m.chat.id, text, reply_markup=kb, parse_mode='Markdown')
+    bot.send_message(m.chat.id, "🇨🇮 Pose ta question ou choisis une langue :", reply_markup=kb)
 
 @bot.message_handler(func=lambda m: any(m.text in row for row in LANGUES))
 def mission(m):
     l = m.text
-    msg = bot.reply_to(m, f"📍 **Langue : {l}**\nEnvoie ton vocal maintenant pour l'archive !")
+    msg = bot.reply_to(m, f"📍 **{l}** : Envoie ton vocal !")
     bot.register_next_step_handler(msg, lambda ms: save_vocal(ms, l))
 
 def save_vocal(m, l):
@@ -70,17 +72,16 @@ def save_vocal(m, l):
             upload_to_drive(name, name, l)
             bot.reply_to(m, reponse_ia_ivoirienne("", True, l))
             if os.path.exists(name): os.remove(name)
-        except: 
-            bot.reply_to(m, "Vocal reçu et archivé ! 🇨🇮")
+        except Exception as e:
+            print(f"Erreur vocal : {e}")
+            bot.reply_to(m, "Reçu ! 🇨🇮")
     else:
         bot.reply_to(m, reponse_ia_ivoirienne(m.text))
 
 @bot.message_handler(func=lambda m: True)
-def chat_libre(m):
-    # Cette fonction permet de répondre à "Comment on dit manger en Yacouba ?"
+def chat(m):
     bot.reply_to(m, reponse_ia_ivoirienne(m.text))
 
 if __name__ == '__main__':
-    t = Thread(target=lambda: app.run(host='0.0.0.0', port=10000))
-    t.start()
+    Thread(target=lambda: app.run(host='0.0.0.0', port=10000)).start()
     bot.infinity_polling(skip_pending=True)
