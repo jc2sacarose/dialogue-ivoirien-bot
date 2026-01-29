@@ -6,7 +6,7 @@ from flask import Flask
 from threading import Thread
 import google.generativeai as genai
 
-# CONFIG IA
+# --- CONFIG IA ---
 GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
 genai.configure(api_key=GEMINI_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
@@ -18,7 +18,7 @@ def obtenir_reponse_ia(langue, mission):
     except:
         return f"C'est propre ! Merci pour ton vocal en {langue} ! 🇨🇮"
 
-# CONFIG GENERALE
+# --- CONFIG GENERALE ---
 API_TOKEN = os.environ.get('TELE_TOKEN')
 FOLDER_ID = os.environ.get('FOLDER_ID')
 ARCHIVE_ID = os.environ.get('ARCHIVE_GROUP_ID')
@@ -27,17 +27,17 @@ SCOPES = ['https://www.googleapis.com/auth/drive']
 
 app = Flask('')
 @app.route('/')
-def home(): return "Bot Live"
+def home(): return "Bot Ivoirien Connecté !"
 
 bot = telebot.TeleBot(API_TOKEN, threaded=False)
 
 LANGUES = [['Baoulé', 'Dioula', 'Bété'], ['Yacouba', 'Guéré', 'Attié']]
-MISSIONS = ["Comment ça va ?", "Le repas est prêt.", "Bonne arrivée."]
+MISSIONS = ["Comment ça va ?", "Le repas est prêt.", "Bonne arrivée chez nous."]
 
 def upload_to_drive(file_path, file_name, langue):
     try:
         if not os.path.exists(SERVICE_ACCOUNT_FILE):
-            print("❌ Erreur : Fichier JSON introuvable")
+            print("❌ Erreur : Fichier secret JSON manquant sur Render")
             return
         creds = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
         service = build('drive', 'v3', credentials=creds)
@@ -52,13 +52,13 @@ def upload_to_drive(file_path, file_name, langue):
 def start(m):
     kb = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
     for l in LANGUES: kb.add(*l)
-    bot.send_message(m.chat.id, "Choisis ta langue :", reply_markup=kb)
+    bot.send_message(m.chat.id, "🇨🇮 Bienvenue ! Choisis ta langue :", reply_markup=kb)
 
 @bot.message_handler(func=lambda m: any(m.text in l for l in LANGUES))
 def mission(m):
     l = m.text
     txt = random.choice(MISSIONS)
-    msg = bot.reply_to(m, f"Langue : {l}\nMission : {txt}")
+    msg = bot.reply_to(m, f"📍 Langue : {l}\n👉 Mission : {txt}\n\nEnvoie ton vocal maintenant !")
     bot.register_next_step_handler(msg, lambda ms: save_vocal(ms, l, txt))
 
 def save_vocal(m, l, txt):
@@ -68,14 +68,18 @@ def save_vocal(m, l, txt):
             data = bot.download_file(f_info.file_path)
             name = f"{l}_{int(time.time())}.ogg"
             with open(name, 'wb') as f: f.write(data)
+            
             if ARCHIVE_ID:
                 with open(name, 'rb') as vf: bot.send_voice(ARCHIVE_ID, vf, caption=f"{l} | {txt}")
+            
             upload_to_drive(name, name, l)
             bot.reply_to(m, obtenir_reponse_ia(l, txt))
             if os.path.exists(name): os.remove(name)
-        except Exception as e: print(f"Erreur : {e}")
+        except Exception as e:
+            print(f"Erreur : {e}")
+            bot.reply_to(m, "✅ Audio reçu !")
 
 if __name__ == '__main__':
     Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))).start()
     bot.infinity_polling(skip_pending=True)
-    
+        
