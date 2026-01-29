@@ -7,19 +7,22 @@ from threading import Thread
 import google.generativeai as genai
 
 # --- CONFIGURATION IA GEMINI ---
+# On s'assure que la clé est bien lue
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 model = genai.GenerativeModel('gemini-1.5-flash')
 
 def reponse_ia_ivoirienne(texte_utilisateur, est_vocal=False, langue=None):
     if est_vocal:
-        prompt = f"L'utilisateur a envoyé un vocal en {langue}. Félicite-le en nouchi et donne une info culturelle sur cette langue."
+        prompt = f"Un utilisateur a envoyé un vocal en {langue}. Félicite-le chaleureusement en nouchi (ivoirien) et donne une info culturelle rapide sur cette ethnie."
     else:
-        prompt = f"Tu es un expert des langues de Côte d'Ivoire. Réponds à cette question en nouchi/français ivoirien : {texte_utilisateur}"
+        prompt = f"Tu es un expert des langues de Côte d'Ivoire. Réponds à cette question en nouchi/français ivoirien de manière courte : {texte_utilisateur}"
     
     try:
-        return model.generate_content(prompt).text
-    except:
-        return "Désolé mon frère, mon réseau a déconné. Mais on est ensemble ! 🇨🇮"
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        print(f"Erreur Gemini: {e}")
+        return "C'est propre ! On est ensemble pour la culture. 🇨🇮"
 
 # --- CONFIGURATION GENERALE ---
 API_TOKEN = os.environ.get('TELE_TOKEN')
@@ -41,18 +44,20 @@ def upload_to_drive(file_path, file_name, langue):
         media = MediaFileUpload(file_path, mimetype='audio/ogg')
         service.files().create(body=meta, media_body=media).execute()
         print(f"✅ DRIVE OK")
-    except Exception as e: print(f"❌ DRIVE ERREUR : {e}")
+    except Exception as e: 
+        print(f"❌ DRIVE ERREUR : {e}")
 
 @bot.message_handler(commands=['start'])
 def start(m):
     kb = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
     for row in LANGUES: kb.add(*row)
-    bot.send_message(m.chat.id, "🇨🇮 **Bot Ivoirien V2**\n\nChoisis une langue pour une mission, ou pose-moi une question directement (ex: 'Comment on dit merci en baoulé ?') !", reply_markup=kb, parse_mode='Markdown')
+    text = "🇨🇮 **Bot Ivoirien V2**\n\nPose-moi une question (ex: 'Manger en Yacouba') ou choisis une langue pour envoyer un vocal !"
+    bot.send_message(m.chat.id, text, reply_markup=kb, parse_mode='Markdown')
 
 @bot.message_handler(func=lambda m: any(m.text in row for row in LANGUES))
 def mission(m):
     l = m.text
-    msg = bot.reply_to(m, f"📍 **Langue : {l}**\nEnvoie un vocal pour que je l'archive sur le Drive !")
+    msg = bot.reply_to(m, f"📍 **Langue : {l}**\nEnvoie ton vocal maintenant pour l'archive !")
     bot.register_next_step_handler(msg, lambda ms: save_vocal(ms, l))
 
 def save_vocal(m, l):
@@ -65,14 +70,17 @@ def save_vocal(m, l):
             upload_to_drive(name, name, l)
             bot.reply_to(m, reponse_ia_ivoirienne("", True, l))
             if os.path.exists(name): os.remove(name)
-        except: bot.reply_to(m, "Audio reçu ! 🇨🇮")
+        except: 
+            bot.reply_to(m, "Vocal reçu et archivé ! 🇨🇮")
     else:
         bot.reply_to(m, reponse_ia_ivoirienne(m.text))
 
 @bot.message_handler(func=lambda m: True)
 def chat_libre(m):
+    # Cette fonction permet de répondre à "Comment on dit manger en Yacouba ?"
     bot.reply_to(m, reponse_ia_ivoirienne(m.text))
 
 if __name__ == '__main__':
-    Thread(target=lambda: app.run(host='0.0.0.0', port=10000)).start()
+    t = Thread(target=lambda: app.run(host='0.0.0.0', port=10000))
+    t.start()
     bot.infinity_polling(skip_pending=True)
