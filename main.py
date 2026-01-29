@@ -9,7 +9,7 @@ import google.generativeai as genai
 # --- CONFIGURATION IA GEMINI ---
 # On s'assure que la clé est bien lue
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-model = genai.GenerativeModel('gemini-1.5-flash')
+model = genai.GenerativeModel('gemini-pro')
 
 def reponse_ia_ivoirienne(texte_utilisateur, est_vocal=False, langue=None):
     if est_vocal:
