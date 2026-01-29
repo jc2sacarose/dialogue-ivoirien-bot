@@ -81,8 +81,7 @@ def upload_to_drive(file_path, file_name, langue):
         file = service.files().create(body=metadata, media_body=media, fields='id').execute()
         print(f"✅ Drive Succès: {file.get('id')}")
     except Exception as e:
-        print(f"⚠️ Drive Erreur: {e}")
-
+        print(f"⚠️ Drive Erreur Détaillée: {type(e).__name__} - {e}")
 @bot.message_handler(commands=['start', 'collecte'])
 def start(message):
     markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
