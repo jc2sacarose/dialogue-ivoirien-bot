@@ -69,7 +69,7 @@ MISSIONS = [
 def upload_to_drive(file_path, file_name, langue):
     try:
         if not os.path.exists(SERVICE_ACCOUNT_FILE):
-            print("❌ Secret JSON manquant")
+            print("❌ Secret JSON manquant sur Render")
             return
         
         creds = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
@@ -78,10 +78,12 @@ def upload_to_drive(file_path, file_name, langue):
         metadata = {'name': f"{langue}_{file_name}", 'parents': [FOLDER_ID]}
         media = MediaFileUpload(file_path, mimetype='audio/ogg', resumable=True)
         
+        print(f"📡 Tentative d'envoi Drive : {file_name}")
         file = service.files().create(body=metadata, media_body=media, fields='id').execute()
-        print(f"✅ Drive Succès: {file.get('id')}")
+        print(f"✅ Drive Succès ID: {file.get('id')}")
     except Exception as e:
         print(f"⚠️ Drive Erreur Détaillée: {type(e).__name__} - {e}")
+
 @bot.message_handler(commands=['start', 'collecte'])
 def start(message):
     markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
@@ -106,13 +108,21 @@ def save_vocal(message, langue, mission):
             with open(temp_name, 'wb') as f:
                 f.write(downloaded)
 
+            # 1. Archive Telegram
             if ARCHIVE_ID:
-                with open(temp_name, 'rb') as voice_file:
-                    bot.send_voice(chat_id=ARCHIVE_ID, voice=voice_file, caption=f"🎙 {langue} | {mission}")
+                try:
+                    with open(temp_name, 'rb') as voice_file:
+                        bot.send_voice(chat_id=ARCHIVE_ID, voice=voice_file, caption=f"🎙 {langue} | {mission}")
+                except Exception as e:
+                    print(f"Erreur Archive Telegram: {e}")
 
+            # 2. Drive
             upload_to_drive(temp_name, temp_name, langue)
-            reponse_ia = obtenir_reponse_ia(langue, mission)
             
+            # 3. IA Gemini
+            reponse_ia = obtenir_reponse_ia(langue, mission, répondre aux questions)
+            
+            # Nettoyage message d'attente
             try:
                 bot.delete_message(message.chat.id, status_msg.message_id)
             except:
@@ -120,8 +130,10 @@ def save_vocal(message, langue, mission):
                 
             bot.reply_to(message, reponse_ia)
             
+            # Suppression fichier local
             if os.path.exists(temp_name):
                 os.remove(temp_name)
+                
         except Exception as e:
             print(f"Erreur sauvegarde: {e}")
             bot.edit_message_text("✅ Audio bien reçu !", message.chat.id, status_msg.message_id)
