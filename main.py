@@ -10,22 +10,20 @@ import google.generativeai as genai
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 model = genai.GenerativeModel('gemini-1.5-flash')
 
-def obtenir_reponse_ia(langue, mission):
-    prompt = (
-        f"Tu es un expert des langues de Côte d'Ivoire. Un utilisateur vient de t'envoyer un vocal en {langue} "
-        f"pour la phrase : '{mission}'. Réponds-lui de manière très chaleureuse en mélangeant français et nouchi. "
-        f"Félicite-le et donne une petite anecdote rapide sur la culture {langue}."
-    )
+def reponse_ia_ivoirienne(texte_utilisateur, est_vocal=False, langue=None):
+    if est_vocal:
+        prompt = f"L'utilisateur a envoyé un vocal en {langue}. Félicite-le en nouchi et donne une info culturelle sur cette langue."
+    else:
+        prompt = f"Tu es un expert des langues de Côte d'Ivoire. Réponds à cette question en nouchi/français ivoirien : {texte_utilisateur}"
+    
     try:
-        response = model.generate_content(prompt)
-        return response.text
+        return model.generate_content(prompt).text
     except:
-        return f"C'est propre ! Merci pour ton vocal en {langue}. On ensemble pour la culture ! 🇨🇮"
+        return "Désolé mon frère, mon réseau a déconné. Mais on est ensemble ! 🇨🇮"
 
 # --- CONFIGURATION GENERALE ---
 API_TOKEN = os.environ.get('TELE_TOKEN')
 FOLDER_ID = os.environ.get('FOLDER_ID')
-ARCHIVE_ID = os.environ.get('ARCHIVE_GROUP_ID')
 SERVICE_ACCOUNT_FILE = '/etc/secrets/service_account.json'
 
 app = Flask('')
@@ -33,8 +31,7 @@ app = Flask('')
 def home(): return "Bot Ivoirien 2.0 Connecté"
 
 bot = telebot.TeleBot(API_TOKEN, threaded=False)
-LANGUES = [['Baoulé', 'Dioula', 'Bété'], ['Yacouba', 'Guéré', 'Attié'], ['Adioukrou', 'Agni', 'Abidji']]
-MISSIONS = ["Comment ça va ?", "Le repas est prêt, viens manger.", "Bonne arrivée chez nous."]
+LANGUES = [['Baoulé', 'Dioula', 'Bété'], ['Yacouba', 'Guéré', 'Attié']]
 
 def upload_to_drive(file_path, file_name, langue):
     try:
@@ -43,50 +40,39 @@ def upload_to_drive(file_path, file_name, langue):
         meta = {'name': f"{langue}_{file_name}", 'parents': [FOLDER_ID]}
         media = MediaFileUpload(file_path, mimetype='audio/ogg')
         service.files().create(body=meta, media_body=media).execute()
-        print(f"✅ DRIVE OK : {langue}")
+        print(f"✅ DRIVE OK")
     except Exception as e: print(f"❌ DRIVE ERREUR : {e}")
 
 @bot.message_handler(commands=['start'])
 def start(m):
     kb = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
     for row in LANGUES: kb.add(*row)
-    bot.send_message(m.chat.id, "🇨🇮 **Bienvenue sur la V2 !**\n\nL'IA ivoirienne t'écoute. Choisis ta langue pour commencer :", reply_markup=kb, parse_mode='Markdown')
+    bot.send_message(m.chat.id, "🇨🇮 **Bot Ivoirien V2**\n\nChoisis une langue pour une mission, ou pose-moi une question directement (ex: 'Comment on dit merci en baoulé ?') !", reply_markup=kb, parse_mode='Markdown')
 
 @bot.message_handler(func=lambda m: any(m.text in row for row in LANGUES))
 def mission(m):
     l = m.text
-    txt = random.choice(MISSIONS)
-    msg = bot.reply_to(m, f"📍 **Langue choisie : {l}**\n👉 Ta mission : *\"{txt}\"*\n\nEnregistre un vocal en {l} pour traduire cette phrase !")
-    bot.register_next_step_handler(msg, lambda ms: save_vocal(ms, l, txt))
+    msg = bot.reply_to(m, f"📍 **Langue : {l}**\nEnvoie un vocal pour que je l'archive sur le Drive !")
+    bot.register_next_step_handler(msg, lambda ms: save_vocal(ms, l))
 
-def save_vocal(m, l, txt):
+def save_vocal(m, l):
     if m.content_type == 'voice':
-        status_msg = bot.reply_to(m, "⏳ *L'IA analyse ton vocal...*", parse_mode='Markdown')
         try:
             f_info = bot.get_file(m.voice.file_id)
             data = bot.download_file(f_info.file_path)
             name = f"{l}_{int(time.time())}.ogg"
             with open(name, 'wb') as f: f.write(data)
-            
-            # Archive Telegram
-            if ARCHIVE_ID:
-                with open(name, 'rb') as vf: bot.send_voice(ARCHIVE_ID, vf, caption=f"🎙 {l} | {txt}")
-            
-            # Envoi Drive
             upload_to_drive(name, name, l)
-            
-            # Réponse IA
-            ia_txt = obtenir_reponse_ia(l, txt)
-            bot.edit_message_text(ia_txt, m.chat.id, status_msg.message_id)
-            
+            bot.reply_to(m, reponse_ia_ivoirienne("", True, l))
             if os.path.exists(name): os.remove(name)
-        except Exception as e:
-            print(f"Erreur : {e}")
-            bot.edit_message_text("✅ Audio reçu avec succès !", m.chat.id, status_msg.message_id)
+        except: bot.reply_to(m, "Audio reçu ! 🇨🇮")
     else:
-        bot.reply_to(m, "⚠️ Pardon, il faut envoyer un vocal pour que l'IA puisse t'écouter.")
+        bot.reply_to(m, reponse_ia_ivoirienne(m.text))
+
+@bot.message_handler(func=lambda m: True)
+def chat_libre(m):
+    bot.reply_to(m, reponse_ia_ivoirienne(m.text))
 
 if __name__ == '__main__':
     Thread(target=lambda: app.run(host='0.0.0.0', port=10000)).start()
     bot.infinity_polling(skip_pending=True)
-        
