@@ -94,5 +94,7 @@ def chat_libre(m):
     bot.reply_to(m, reponse_ia_ivoirienne(m.text))
 
 if __name__ == '__main__':
-    Thread(target=lambda: app.run(host='0.0.0.0', port=10000)).start()
-    bot.infinity_polling(skip_pending=True) # Évite les erreurs 409
+    # Le skip_pending=True permet au bot d'ignorer les messages envoyés 
+    # pendant qu'il était déconnecté, ce qui évite de saturer la connexion au démarrage.
+    bot.infinity_polling(skip_pending=True)
+    
