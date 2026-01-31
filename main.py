@@ -38,7 +38,7 @@ LANGUES = [['Baoulé', 'Dioula', 'Bété'], ['Yacouba', 'Guéré', 'Attié']]
 def upload_to_drive(file_path, file_name, langue):
     try:
         if not os.path.exists(SERVICE_ACCOUNT_FILE):
-            return "Fichier JSON introuvable sur le serveur"
+            return "Fichier JSON introuvable sur Render"
         creds = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=['https://www.googleapis.com/auth/drive'])
         service = build('drive', 'v3', credentials=creds)
         meta = {'name': f"{langue}_{file_name}", 'parents': [FOLDER_ID]}
@@ -67,7 +67,7 @@ def save_vocal(m, l):
             if CHAT_ARCHIVE_ID:
                 bot.forward_message(CHAT_ARCHIVE_ID, m.chat.id, m.message_id)
             
-            # 2. Téléchargement
+            # 2. Téléchargement temporaire
             f_info = bot.get_file(m.voice.file_id)
             data = bot.download_file(f_info.file_path)
             name = f"{l}_{int(time.time())}.ogg"
