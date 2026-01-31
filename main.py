@@ -92,9 +92,10 @@ def save_vocal(m, l):
 @bot.message_handler(func=lambda m: True)
 def chat_libre(m):
     bot.reply_to(m, reponse_ia_ivoirienne(m.text))
-
+    
 if __name__ == '__main__':
-    # Le skip_pending=True permet au bot d'ignorer les messages envoyés 
-    # pendant qu'il était déconnecté, ce qui évite de saturer la connexion au démarrage.
+    # On force le port 10000 pour que Render valide le déploiement
+    port = int(os.environ.get("PORT", 10000))
+    Thread(target=lambda: app.run(host='0.0.0.0', port=port)).start()
     bot.infinity_polling(skip_pending=True)
     
