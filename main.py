@@ -68,13 +68,11 @@ def chat_libre(m):
     bot.reply_to(m, reponse_ia(m.text))
 
 if __name__ == '__main__':
-    # Flask sur un thread séparé
     t = Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000))))
     t.start()
     
-    # NETTOYAGE CRITIQUE : on supprime les webhooks et les messages en attente
     bot.remove_webhook()
     time.sleep(1)
     print("🚀 Bot démarré...")
     bot.infinity_polling(skip_pending=True)
-                    
+    
