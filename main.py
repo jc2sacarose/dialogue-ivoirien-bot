@@ -54,24 +54,37 @@ def mission(m):
 
 def save_vocal(m, l):
     if m.content_type == 'voice':
+        # On prévient l'utilisateur que le bot travaille
+        statut = bot.reply_to(m, "🔄 En cours d'archivage...")
         try:
-            # 1. Forward vers ton groupe Archive (-100...)
+            # 1. Archive Telegram (Vérifie si ton ID est bon)
             if CHAT_ARCHIVE_ID:
                 bot.forward_message(CHAT_ARCHIVE_ID, m.chat.id, m.message_id)
             
-            # 2. Upload Drive
+            # 2. Téléchargement du fichier
             f_info = bot.get_file(m.voice.file_id)
             data = bot.download_file(f_info.file_path)
             name = f"{l}_{int(time.time())}.ogg"
-            with open(name, 'wb') as f: f.write(data)
+            with open(name, 'wb') as f:
+                f.write(data)
+            
+            # 3. Tentative Drive
             upload_to_drive(name, name, l)
             
-            # 3. Réponse IA
+            # 4. Réponse de l'IA
+            bot.edit_message_text("✅ Archivé avec succès !", m.chat.id, statut.message_id)
             bot.reply_to(m, reponse_ia("", True, l))
+            
             if os.path.exists(name): os.remove(name)
-        except Exception as e: print(f"Erreur: {e}")
+            
+        except Exception as e:
+            # ICI : Le bot va t'envoyer l'erreur réelle sur Telegram !
+            bot.edit_message_text(f"❌ Erreur détectée : {str(e)}", m.chat.id, statut.message_id)
     else:
         bot.reply_to(m, reponse_ia(m.text))
+
+            
+            
 
 if __name__ == '__main__':
     Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))).start()
