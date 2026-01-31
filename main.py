@@ -6,31 +6,25 @@ from flask import Flask
 from threading import Thread
 import google.generativeai as genai
 
-# --- CONFIGURATION IA GEMINI ---
+# --- CONFIGURATION GEMINI ---
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 model = genai.GenerativeModel('gemini-1.5-flash')
 
-def reponse_ia_ivoirienne(texte_utilisateur, est_vocal=False, langue=None):
+def reponse_ia(texte, est_vocal=False, langue=None):
     try:
-        if est_vocal:
-            prompt = f"Un utilisateur a envoyé un vocal en {langue}. Félicite-le chaleureusement en nouchi et donne une info culturelle."
-        else:
-            prompt = f"Réponds en français ivoirien (nouchi) à cette question : {texte_utilisateur}"
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        print(f"Erreur Gemini: {e}")
-        return "C'est propre ! On est ensemble pour la culture. 🇨🇮"
+        prompt = f"Réponds en nouchi (ivoirien) : {texte}"
+        if est_vocal: prompt = f"L'utilisateur a envoyé un vocal en {langue}. Salue-le en nouchi et dis-lui que son message est archivé !"
+        return model.generate_content(prompt).text
+    except: return "C'est propre ! On est ensemble. 🇨🇮"
 
-# --- CONFIGURATION DES SERVICES ---
+# --- CONFIGURATION SERVICES ---
 API_TOKEN = os.environ.get('TELE_TOKEN')
 FOLDER_ID = os.environ.get('FOLDER_ID')
-CHAT_ARCHIVE_ID = os.environ.get('CHAT_ARCHIVE_ID')
 SERVICE_ACCOUNT_FILE = '/etc/secrets/service_account.json'
 
 app = Flask('')
 @app.route('/')
-def home(): return "Bot Actif"
+def home(): return "Bot en ligne"
 
 bot = telebot.TeleBot(API_TOKEN, threaded=False)
 LANGUES = [['Baoulé', 'Dioula', 'Bété'], ['Yacouba', 'Guéré', 'Attié']]
@@ -42,8 +36,7 @@ def upload_to_drive(file_path, file_name, langue):
         meta = {'name': f"{langue}_{file_name}", 'parents': [FOLDER_ID]}
         media = MediaFileUpload(file_path, mimetype='audio/ogg')
         service.files().create(body=meta, media_body=media).execute()
-        print(f"✅ DRIVE OK")
-    except Exception as e: print(f"❌ DRIVE ERR: {e}")
+    except Exception as e: print(f"Erreur Drive: {e}")
 
 @bot.message_handler(commands=['start'])
 def start(m):
@@ -53,30 +46,22 @@ def start(m):
 
 @bot.message_handler(func=lambda m: any(m.text in row for row in LANGUES))
 def mission(m):
-    l = m.text
-    msg = bot.reply_to(m, f"📍 **Langue : {l}**\nEnvoie ton vocal !")
-    bot.register_next_step_handler(msg, lambda ms: save_vocal(ms, l))
+    msg = bot.reply_to(m, f"📍 **Langue : {m.text}**\nEnvoie ton vocal !")
+    bot.register_next_step_handler(msg, lambda ms: save_vocal(ms, m.text))
 
 def save_vocal(m, l):
     if m.content_type == 'voice':
-        try:
-            if CHAT_ARCHIVE_ID: bot.forward_message(CHAT_ARCHIVE_ID, m.chat.id, m.message_id)
-            f_info = bot.get_file(m.voice.file_id)
-            data = bot.download_file(f_info.file_path)
-            name = f"{l}_{int(time.time())}.ogg"
-            with open(name, 'wb') as f: f.write(data)
-            upload_to_drive(name, name, l)
-            bot.reply_to(m, reponse_ia_ivoirienne("", True, l))
-            if os.path.exists(name): os.remove(name)
-        except: bot.reply_to(m, "Vocal reçu !")
-    else: bot.reply_to(m, reponse_ia_ivoirienne(m.text))
-
-@bot.message_handler(func=lambda m: True)
-def chat_libre(m):
-    bot.reply_to(m, reponse_ia_ivoirienne(m.text))
+        f_info = bot.get_file(m.voice.file_id)
+        data = bot.download_file(f_info.file_path)
+        name = f"{l}_{int(time.time())}.ogg"
+        with open(name, 'wb') as f: f.write(data)
+        upload_to_drive(name, name, l)
+        bot.reply_to(m, reponse_ia("", True, l))
+        if os.path.exists(name): os.remove(name)
+    else: bot.reply_to(m, reponse_ia(m.text))
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 10000))
-    Thread(target=lambda: app.run(host='0.0.0.0', port=port)).start()
-    bot.remove_webhook() # Pour éviter les conflits
+    Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))).start()
+    bot.remove_webhook() # ÉVITE L'ERREUR 409
     bot.infinity_polling(skip_pending=True)
+        
