@@ -39,23 +39,22 @@ def upload_to_drive(file_path, file_name, langue):
         meta = {'name': f"{langue}_{file_name}", 'parents': [FOLDER_ID]}
         media = MediaFileUpload(file_path, mimetype='audio/ogg')
         
-        # AJOUT de supportsAllDrives pour régler le problème de Quota
+        # Correction Quota : On ajoute 'supportsAllDrives' ET on demande l'ID en retour
         service.files().create(
             body=meta, 
             media_body=media, 
             fields='id',
-            supportsAllDrives=True 
+            supportsAllDrives=True,
+            supportsTeamDrives=True
         ).execute()
         return "OK"
     except Exception as e:
-        if "quota" in str(e).lower():
-            return "Erreur de Quota : Le dossier Drive doit m'appartenir !"
         return str(e)
 
 @bot.message_handler(commands=['start'])
 def start(m):
     kb = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add('Baoulé', 'Dioula', 'Bété', 'Yacouba', 'Guéré', 'Attié', 'Ajoutez votre langue')
+    kb.add('Baoulé', 'Dioula', 'Bété', 'Yacouba', 'Guéré', 'Attié','Ajoutez votre langue')
     bot.send_message(m.chat.id, "🇨🇮 **Dialogue Ivoirien AI**\nPrêt pour l'archivage !", reply_markup=kb)
 
 @bot.message_handler(func=lambda m: m.text in ['Baoulé', 'Dioula', 'Bété', 'Yacouba', 'Guéré', 'Attié'])
@@ -68,26 +67,36 @@ def save_vocal(m, l):
         statut = bot.reply_to(m, "🔄 Archivage...")
         try:
             # Archive Telegram
+            archive_status = "Ignorée"
             if CHAT_ARCHIVE_ID and str(CHAT_ARCHIVE_ID) != "0":
-                try: bot.forward_message(CHAT_ARCHIVE_ID, m.chat.id, m.message_id)
-                except: pass
+                try: 
+                    bot.forward_message(CHAT_ARCHIVE_ID, m.chat.id, m.message_id)
+                    archive_status = "OK"
+                except Exception as te: archive_status = f"Erreur: {str(te)}"
 
             f_info = bot.get_file(m.voice.file_id)
             data = bot.download_file(f_info.file_path)
             name = f"{l}_{int(time.time())}.ogg"
             with open(name, 'wb') as f: f.write(data)
             
-            res = upload_to_drive(name, name, l)
-            bot.edit_message_text(f"✅ Drive : {res}", m.chat.id, statut.message_id)
+            res_drive = upload_to_drive(name, name, l)
+            
+            # Rapport complet à l'utilisateur
+            bot.edit_message_text(f"📊 **Rapport :**\n☁️ Drive : {res_drive}\n📁 Archive : {archive_status}", m.chat.id, statut.message_id)
+            
             bot.reply_to(m, reponse_ia("", True, l))
             if os.path.exists(name): os.remove(name)
-        except Exception as e: bot.reply_to(m, f"❌ Erreur : {str(e)}")
+        except Exception as e: bot.reply_to(m, f"❌ Erreur système : {str(e)}")
+    else:
+        bot.reply_to(m, "Oups, j'attendais un vocal boss !")
 
 @bot.message_handler(func=lambda m: True)
 def chat(m): bot.reply_to(m, reponse_ia(m.text))
 
 if __name__ == '__main__':
     Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))).start()
+    # Nettoyage forcé du Webhook avant de lancer le Polling
     bot.remove_webhook()
+    time.sleep(1) 
+    print("🚀 Bot lancé...")
     bot.infinity_polling(skip_pending=True)
-        
