@@ -11,7 +11,10 @@ model = genai.GenerativeModel('gemini-1.5-flash')
 
 def reponse_ia(texte, est_vocal=False, langue=None):
     try:
-        prompt = f"Réponds en nouchi. Un vocal en {langue} a été archivé." if est_vocal else f"Explique en français : {texte}"
+        if est_vocal:
+            prompt = f"Un vocal en {langue} a été archivé. Salue l'utilisateur en nouchi et dis-lui que c'est propre !"
+        else:
+            prompt = f"Tu es un expert des langues ivoiriennes. Réponds à ceci : {texte}"
         return model.generate_content(prompt).text
     except: return "On est ensemble ! 🇨🇮"
 
@@ -19,7 +22,6 @@ def reponse_ia(texte, est_vocal=False, langue=None):
 API_TOKEN = os.environ.get('TELE_TOKEN')
 FOLDER_ID = os.environ.get('FOLDER_ID')
 CHAT_ARCHIVE_ID = os.environ.get('CHAT_ARCHIVE_ID')
-# On simplifie le chemin au cas où
 SERVICE_ACCOUNT_FILE = '/etc/secrets/Archive-bot-dialogue-d1ab608ab4fb.json'
 
 bot = telebot.TeleBot(API_TOKEN, threaded=False)
@@ -30,9 +32,8 @@ def home(): return "Bot Live"
 
 def upload_to_drive(file_path, file_name, langue):
     try:
-        # Test de présence du fichier secret
         if not os.path.exists(SERVICE_ACCOUNT_FILE):
-            return "❌ Erreur: Fichier secret JSON introuvable sur Render"
+            return "❌ Fichier JSON introuvable sur Render"
         
         creds = service_account.Credentials.from_service_account_file(
             SERVICE_ACCOUNT_FILE, 
@@ -43,6 +44,7 @@ def upload_to_drive(file_path, file_name, langue):
         meta = {'name': f"{langue}_{file_name}", 'parents': [FOLDER_ID]}
         media = MediaFileUpload(file_path, mimetype='audio/ogg')
         
+        # On force l'utilisation du quota du propriétaire du dossier
         service.files().create(
             body=meta, 
             media_body=media, 
@@ -51,51 +53,46 @@ def upload_to_drive(file_path, file_name, langue):
         ).execute()
         return "✅ OK"
     except Exception as e:
-        return f"❌ Drive: {str(e)[:50]}"
+        return f"❌ {str(e)[:50]}"
 
 @bot.message_handler(commands=['start'])
 def start(m):
     kb = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add('Baoulé', 'Dioula', 'Bété', 'Yacouba', 'Guéré', 'Attié', 'Ajoutez votre langue')
-    bot.send_message(m.chat.id, "🇨🇮 **Archiveur Actif**\nChoisis ta langue !", reply_markup=kb)
+    bot.send_message(m.chat.id, "🇨🇮 **Archiveur Actif**\nChoisis une langue et envoie ton vocal !", reply_markup=kb)
 
 @bot.message_handler(func=lambda m: m.text in ['Baoulé', 'Dioula', 'Bété', 'Yacouba', 'Guéré', 'Attié'])
 def mission(m):
-    msg = bot.reply_to(m, f"📍 **{m.text}** : Comment dit-on Bonjour? J'attends ton vocal...")
+    msg = bot.reply_to(m, f"📍 **{m.text}** : Comment dit-on Bonjour et bienvenue? J'attends ton vocal...")
     bot.register_next_step_handler(msg, lambda ms: save_vocal(ms, m.text))
 
 def save_vocal(m, l):
     if m.content_type == 'voice':
-        statut = bot.reply_to(m, "🔄 En cours...")
+        statut = bot.reply_to(m, "🔄 Archivage...")
         try:
-            # 1. Archive Telegram (on essaie sans bloquer)
-            t_status = "Inconnu"
+            # Archive Telegram
             if CHAT_ARCHIVE_ID and str(CHAT_ARCHIVE_ID) != "0":
-                try:
-                    bot.forward_message(CHAT_ARCHIVE_ID, m.chat.id, m.message_id)
-                    t_status = "✅"
-                except: t_status = "❌"
-
-            # 2. Téléchargement et Drive
+                try: bot.forward_message(CHAT_ARCHIVE_ID, m.chat.id, m.message_id)
+                except: pass
+            
+            # Téléchargement
             f_info = bot.get_file(m.voice.file_id)
             data = bot.download_file(f_info.file_path)
             name = f"{l}_{int(time.time())}.ogg"
             with open(name, 'wb') as f: f.write(data)
             
+            # Drive
             res_drive = upload_to_drive(name, name, l)
-            bot.edit_message_text(f"Telegram: {t_status} | Drive: {res_drive}", m.chat.id, statut.message_id)
+            bot.edit_message_text(f"Statut Drive : {res_drive}", m.chat.id, statut.message_id)
             
+            # IA
             bot.reply_to(m, reponse_ia("", True, l))
             if os.path.exists(name): os.remove(name)
-        except Exception as e:
-            bot.reply_to(m, f"Erreur: {str(e)}")
+        except Exception as e: bot.reply_to(m, f"❌ Erreur : {str(e)}")
     else:
         bot.reply_to(m, reponse_ia(m.text))
 
 if __name__ == '__main__':
     Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))).start()
-    # NETTOYAGE CRITIQUE : on enlève tout Webhook avant de lancer
     bot.remove_webhook()
-    time.sleep(1)
     bot.infinity_polling(skip_pending=True)
-        
