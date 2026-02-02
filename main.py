@@ -5,7 +5,7 @@ from googleapiclient.http import MediaFileUpload
 from flask import Flask
 from threading import Thread
 
-# --- IA GEMINI ---
+# --- IA GEMINI (Version Flash pour la rapidité) ---
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 model = genai.GenerativeModel('gemini-1.5-flash')
 
@@ -23,20 +23,20 @@ def home(): return "Bot Ivoirien Connecté"
 
 def upload_to_drive(file_path, file_name, langue):
     try:
-        if not os.path.exists(SERVICE_ACCOUNT_FILE): return "Fichier secret manquant"
+        if not os.path.exists(SERVICE_ACCOUNT_FILE): return "❌ JSON introuvable"
         creds = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=['https://www.googleapis.com/auth/drive'])
         service = build('drive', 'v3', credentials=creds)
         meta = {'name': f"{langue}_{file_name}", 'parents': [FOLDER_ID]}
         media = MediaFileUpload(file_path, mimetype='audio/ogg')
         service.files().create(body=meta, media_body=media, supportsAllDrives=True).execute()
         return "✅ OK"
-    except Exception as e: return f"❌ {str(e)[:40]}"
+    except Exception as e: return f"❌ {str(e)[:30]}"
 
 @bot.message_handler(commands=['start'])
 def start(m):
     kb = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add('Baoulé', 'Dioula', 'Bété', 'Yacouba', 'Guéré', 'Attié', 'Ajoutez votre langue')
-    bot.send_message(m.chat.id, "🇨🇮 **Prêt pour l'archive !**\nChoisis une langue et envoie ton vocal.", reply_markup=kb)
+    bot.send_message(m.chat.id, "🇨🇮 **Prêt !** Choisis ta langue et envoie un vocal.", reply_markup=kb)
 
 @bot.message_handler(func=lambda m: m.text in ['Baoulé', 'Dioula', 'Bété', 'Yacouba', 'Guéré', 'Attié'])
 def mission(m):
@@ -45,33 +45,40 @@ def mission(m):
 
 def save_vocal(m, l):
     if m.content_type == 'voice':
-        statut = bot.reply_to(m, "🔄 Traitement...")
+        statut = bot.reply_to(m, "🔄 Archivage...")
         try:
+            # Archive Telegram
             if CHAT_ARCHIVE_ID and str(CHAT_ARCHIVE_ID) != "0":
                 try: bot.forward_message(CHAT_ARCHIVE_ID, m.chat.id, m.message_id)
                 except: pass
+            
+            # Drive
             f_info = bot.get_file(m.voice.file_id)
             data = bot.download_file(f_info.file_path)
             name = f"vocal_{int(time.time())}.ogg"
             with open(name, 'wb') as f: f.write(data)
+            
             res_drive = upload_to_drive(name, name, l)
-            bot.edit_message_text(f"Statut Drive : {res_drive}", m.chat.id, statut.message_id)
-            res = model.generate_content(f"L'utilisateur a envoyé un vocal en {l}. Salue-le en nouchi.")
+            bot.edit_message_text(f"Drive : {res_drive}", m.chat.id, statut.message_id)
+            
+            # IA Gemini
+            res = model.generate_content(f"Réponds en nouchi : un vocal en {l} est bien arrivé.")
             bot.reply_to(m, res.text)
             if os.path.exists(name): os.remove(name)
         except Exception as e: bot.reply_to(m, f"Erreur : {str(e)}")
     else:
-        bot.reply_to(m, "Envoie un vocal boss !")
+        bot.reply_to(m, "Envoie un vocal !")
 
 @bot.message_handler(func=lambda m: True)
 def chat_ecrit(m):
     try:
-        res = model.generate_content(f"Réponds en tant qu'expert des langues de Côte d'Ivoire : {m.text}")
+        res = model.generate_content(m.text)
         bot.reply_to(m, res.text)
-    except: bot.reply_to(m, "Je t'entends, mais Gemini fatigue un peu.")
+    except: bot.reply_to(m, "Je t'entends !")
 
 if __name__ == '__main__':
     Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))).start()
     bot.remove_webhook()
     time.sleep(1)
+    print("🚀 Bot lancé avec succès")
     bot.infinity_polling(skip_pending=True)
