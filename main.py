@@ -35,12 +35,12 @@ def upload_to_drive(file_path, file_name, langue):
 @bot.message_handler(commands=['start'])
 def start(m):
     kb = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add('Baoulé', 'Dioula', 'Bété', 'Yacouba', 'Guéré', 'Attié')
+    kb.add('Baoulé', 'Dioula', 'Bété', 'Yacouba', 'Guéré', 'Attié', 'Ajoutez votre langue')
     bot.send_message(m.chat.id, "🇨🇮 **Archiveur Actif**\nChoisis une langue et envoie ton vocal !", reply_markup=kb)
 
 @bot.message_handler(func=lambda m: m.text in ['Baoulé', 'Dioula', 'Bété', 'Yacouba', 'Guéré', 'Attié'])
 def mission(m):
-    msg = bot.reply_to(m, f"📍 **{m.text}** : J'attends ton vocal...")
+    msg = bot.reply_to(m, f"📍 **{m.text}** : Comment dit-on Bonjour et bienvenue? J'attends ton vocal...")
     bot.register_next_step_handler(msg, lambda ms: save_vocal(ms, m.text))
 
 def save_vocal(m, l):
