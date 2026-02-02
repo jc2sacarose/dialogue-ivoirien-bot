@@ -35,33 +35,27 @@ def upload_to_drive(file_path, file_name, langue):
 @bot.message_handler(commands=['start'])
 def start(m):
     kb = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add('Baoulé', 'Dioula', 'Bété', 'Yacouba', 'Guéré', 'Attié')
+    kb.add('Baoulé', 'Dioula', 'Bété', 'Yacouba', 'Guéré', 'Attié', 'Ajoutez votre langue')
     bot.send_message(m.chat.id, "🇨🇮 **Prêt pour l'archive !**\nChoisis une langue et envoie ton vocal.", reply_markup=kb)
 
 @bot.message_handler(func=lambda m: m.text in ['Baoulé', 'Dioula', 'Bété', 'Yacouba', 'Guéré', 'Attié'])
 def mission(m):
-    msg = bot.reply_to(m, f"📍 **{m.text}** : J'attends ton vocal...")
+    msg = bot.reply_to(m, f"📍 **{m.text}** : Comment dit-on Bonjour et bienvenue? J'attends ton vocal...")
     bot.register_next_step_handler(msg, lambda ms: save_vocal(ms, m.text))
 
 def save_vocal(m, l):
     if m.content_type == 'voice':
         statut = bot.reply_to(m, "🔄 Traitement...")
         try:
-            # 1. Archive Telegram (si configuré)
             if CHAT_ARCHIVE_ID and str(CHAT_ARCHIVE_ID) != "0":
                 try: bot.forward_message(CHAT_ARCHIVE_ID, m.chat.id, m.message_id)
                 except: pass
-            
-            # 2. Téléchargement et Drive
             f_info = bot.get_file(m.voice.file_id)
             data = bot.download_file(f_info.file_path)
             name = f"vocal_{int(time.time())}.ogg"
             with open(name, 'wb') as f: f.write(data)
-            
             res_drive = upload_to_drive(name, name, l)
             bot.edit_message_text(f"Statut Drive : {res_drive}", m.chat.id, statut.message_id)
-            
-            # 3. IA Gemini
             res = model.generate_content(f"L'utilisateur a envoyé un vocal en {l}. Salue-le en nouchi.")
             bot.reply_to(m, res.text)
             if os.path.exists(name): os.remove(name)
@@ -78,8 +72,6 @@ def chat_ecrit(m):
 
 if __name__ == '__main__':
     Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))).start()
-    # RÉINITIALISATION FORCÉE DE LA CONNEXION TELEGRAM
     bot.remove_webhook()
     time.sleep(1)
-    print("Bot lancé...")
     bot.infinity_polling(skip_pending=True)
